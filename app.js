@@ -321,26 +321,40 @@ window.addEventListener('hashchange', () => {
 
 // ---------- Home ----------
 
+// GP interviews held at a visit: the main one once started, plus the short one if needed.
+function interviewsHeld(v) {
+  const iv = v.interview;
+  if (!iv) return 0;
+  const main = iv.name.trim() || Object.values(iv.items).some((it) => it.comment.trim() || it.notes.trim()) ? 1 : 0;
+  return main + (shortInterviewRequired(v) && (iv.short.name.trim() || iv.short.notes.trim()) ? 1 : 0);
+}
+
+// Same layout as the co-surveyor's Practice visits page; newest visit date first.
 function renderHome() {
-  const sorted = visits.slice().sort((a, b) => b.updated - a.updated);
+  const sorted = visits.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updated - a.updated);
   app.innerHTML = `
-    <h1>Visits</h1>
-    <p class="sub">Health records review, RACGP Standards (5th edition). Everything is saved on this iPad only.</p>
-    <div class="actions" style="margin:0 0 16px"><button class="primary" id="newVisit">+ New visit</button></div>
+    <div class="row home-head">
+      <div>
+        <div class="eyebrow">AGPAL Primary Surveyor</div>
+        <h1 style="margin:0">Practice visits</h1>
+      </div>
+      <div class="spacer"></div>
+      <button class="primary" id="newVisit">New practice visit</button>
+    </div>
     ${sorted.length ? sorted.map((v) => {
-      const p = progress(namedGps(v));
-      const e = equipmentProgress(v);
+      const n = interviewsHeld(v);
+      const short = v.date ? new Date(v.date + 'T00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date';
       return `
       <div class="card visit">
         <div class="info">
           <div class="name">${esc(v.practice || 'Untitled practice')}</div>
-          <div class="meta">${esc(formatDate(v.date))} · ${namedGps(v).length} GP${namedGps(v).length === 1 ? '' : 's'} · ${p.done}/${p.total} record cells · ${e.done}/${e.total} equipment items · ${interviewProgress(v).done}/${GP_INTERVIEW.length} interview comments</div>
+          <div class="meta">${esc(short)} · ${n} interview${n === 1 ? '' : 's'}</div>
         </div>
         <a class="btn primary" href="#/visit/${v.id}">Open</a>
-        <a class="btn" href="#/visit/${v.id}/setup">Edit details</a>
         <button class="danger" data-delete="${v.id}">Delete</button>
       </div>`;
-    }).join('') : '<div class="card empty">No visits yet. Tap <strong>New visit</strong> to start.</div>'}
+    }).join('') : '<div class="card empty">No visits yet. Tap <strong>New practice visit</strong> to start.</div>'}
+    <p class="note">Everything is saved on this iPad only.</p>
   `;
   document.getElementById('newVisit').onclick = () => {
     const v = newVisit();

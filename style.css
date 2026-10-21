@@ -95,6 +95,8 @@ textarea { min-height: 120px; resize: vertical; }
 input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Visit list */
+.home-head { margin: 4px 0 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .visit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .visit .info { flex: 1; min-width: 200px; }
 .visit .name { font-weight: 700; font-size: 18px; }
