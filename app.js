@@ -244,10 +244,10 @@ function interviewProgress(visit) {
 }
 
 // The short interview is needed when the practice has more than 5 doctors.
-// Until Neil says otherwise, assume so when more than 5 GPs were entered.
+// Until Neil says otherwise, go by the imported doctor list or the GPs entered.
 function shortInterviewRequired(visit) {
   const req = interviewState(visit).short.required;
-  return req === null ? namedGps(visit).length > 5 : req;
+  return req === null ? Math.max(namedGps(visit).length, visit.doctorCount || 0) > 5 : req;
 }
 
 // Always "Dr" before doctor names; an empty name stays as the [Name] placeholder.
@@ -367,9 +367,16 @@ function renderSetup(visit) {
       </div>
     </div>
     <div class="card">
-      <h2 style="margin-top:0">GPs</h2>
+      <div class="row" style="margin-bottom:12px">
+        <h2 style="margin:0">GPs</h2>
+        <div class="spacer"></div>
+        <label class="btn" for="gpPdf">Import names from PDF</label>
+        <input type="file" id="gpPdf" accept="application/pdf,.pdf" hidden>
+      </div>
+      <div id="gpImport"></div>
       <div id="gpList"></div>
       <button id="addGp">+ Add GP</button>
+      <p class="note" id="doctorCount">${visit.doctorCount ? `The imported list had ${visit.doctorCount} doctors.` : ''}</p>
     </div>
     <div class="actions">
       <button class="primary" id="start">Start reviewing records</button>
@@ -410,6 +417,59 @@ function renderSetup(visit) {
   };
   drawGps();
 
+  const importBox = document.getElementById('gpImport');
+  const pdfInput = document.getElementById('gpPdf');
+  pdfInput.addEventListener('change', async () => {
+    const file = pdfInput.files[0];
+    pdfInput.value = '';
+    if (!file) return;
+    importBox.innerHTML = '<p class="note">Reading the PDF…</p>';
+    let names;
+    try {
+      names = await namesFromPdf(file);
+    } catch (e) {
+      importBox.innerHTML = `<p class="note warn">Could not read that PDF (${esc(e.message)}). Type the names instead.</p>`;
+      return;
+    }
+    if (!names.length) {
+      importBox.innerHTML = '<p class="note warn">No names found. If the PDF is a scanned image there is no text to read, so type the names instead.</p>';
+      return;
+    }
+    const existing = new Set(visit.gps.map((g) => doctorName(g.name).toLowerCase()));
+    const fresh = names.filter((n) => !existing.has(doctorName(n.name).toLowerCase()));
+    const anyDr = names.some((n) => n.dr);
+    importBox.innerHTML = `
+      <div class="import-panel">
+        <p style="margin-top:0"><strong>Found ${names.length} name${names.length === 1 ? '' : 's'} in ${esc(file.name)}.</strong>
+          ${anyDr ? 'Tick the GPs whose records you will review.' : 'No “Dr” was found, so nothing is ticked — tick the names that are GPs whose records you will review.'}
+          ${fresh.length < names.length ? ` ${names.length - fresh.length} already in the list ${names.length - fresh.length === 1 ? 'is' : 'are'} not shown.` : ''}</p>
+        ${fresh.map((n, i) => `<label class="check"><input type="checkbox" data-import="${i}" ${n.dr ? 'checked' : ''}> ${esc(doctorName(n.name))}</label>`).join('')}
+        <div class="row">
+          <button class="primary" id="importAdd">Add ticked GPs</button>
+          <button id="importCancel">Cancel</button>
+        </div>
+        <p class="note" style="margin-bottom:0">The PDF is only read on this iPad; it is not saved.</p>
+      </div>`;
+    document.getElementById('importCancel').onclick = () => { importBox.innerHTML = ''; };
+    document.getElementById('importAdd').onclick = () => {
+      const picked = fresh.filter((n, i) => importBox.querySelector(`[data-import="${i}"]`).checked);
+      // Fill any empty GP rows first, then add new ones.
+      picked.forEach((n) => {
+        const blank = visit.gps.find((g) => !g.name.trim());
+        if (blank) blank.name = doctorName(n.name);
+        else visit.gps.push(newGp(doctorName(n.name)));
+      });
+      // Remember the practice's doctor count for the second short interview.
+      if (anyDr) {
+        visit.doctorCount = names.filter((n) => n.dr).length;
+        document.getElementById('doctorCount').textContent = `The imported list had ${visit.doctorCount} doctors.`;
+      }
+      touch(visit);
+      importBox.innerHTML = '';
+      drawGps();
+    };
+  });
+
   document.getElementById('addGp').onclick = () => {
     visit.gps.push(newGp(''));
     touch(visit);
@@ -425,6 +485,70 @@ function renderSetup(visit) {
     saveNow();
     go('#/visit/' + visit.id);
   };
+}
+
+// ---------- Doctor list import ----------
+
+// pdf.js is only loaded when a PDF is imported (it is still cached for offline use).
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = resolve;
+    el.onerror = () => reject(new Error('could not load ' + src));
+    document.head.appendChild(el);
+  });
+}
+
+// Qualifications, roles and days that often follow a doctor's name in staff lists.
+const NOT_NAME = /^(MBBS|BMBS|MBChB|MB|BS|BCh|BAO|MD|PhD|MPH|BSc|BMed\w*|FRACGP|FACRRM|FARGP|FRANZCOG|DRANZCOG\w*|DCH|MRCGP|GAICD|Dip\w*|Grad\w*|Adv\w*|GP|VMO|Registrar|Principal|Partner|Director|Owner|Locum|Female|Male|Mon\w*|Tue\w*|Wed\w*|Thu\w*|Fri\w*|Sat\w*|Sun\w*)$/i;
+
+function cleanName(words) {
+  const kept = [];
+  for (const w of words) {
+    if (NOT_NAME.test(w.replace(/[(),.]/g, ''))) break;
+    // SMITH -> Smith, keeping hyphens and apostrophes (O'BRIEN -> O'Brien).
+    kept.push(w.length > 1 && w === w.toUpperCase() ? w.toLowerCase().replace(/(^|[-'’])(\p{L})/gu, (m, p, c) => p + c.toUpperCase()) : w);
+  }
+  return kept.join(' ').replace(/[,.;:]+$/, '');
+}
+
+// Returns [{ name, dr }]: names after "Dr", or if there are none, lines that look like names.
+async function namesFromPdf(file) {
+  if (!window.pdfjsLib) await loadScript('vendor/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
+  const lines = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const text = await (await pdf.getPage(p)).getTextContent();
+    // Rebuild lines from text items by their vertical position.
+    const rows = new Map();
+    text.items.forEach((it) => {
+      if (!it.str.trim()) return;
+      const y = Math.round(it.transform[5]);
+      if (!rows.has(y)) rows.set(y, []);
+      rows.get(y).push(it);
+    });
+    [...rows.entries()].sort((a, b) => b[0] - a[0]).forEach(([, items]) => {
+      lines.push(items.sort((a, b) => a.transform[4] - b.transform[4]).map((it) => it.str).join(' ').replace(/\s+/g, ' ').trim());
+    });
+  }
+
+  const found = new Map();
+  const add = (name, dr) => {
+    const key = name.toLowerCase();
+    if (name.split(' ').length >= 2 && !found.has(key)) found.set(key, { name, dr });
+  };
+  const WORD = "[\\p{Lu}][\\p{L}'’\\-]*\\.?";
+  const drPattern = new RegExp(`\\b(?:Dr|DR|Doctor)\\.?\\s+(${WORD}(?:\\s+${WORD}){1,4})`, 'gu');
+  lines.forEach((line) => {
+    for (const m of line.matchAll(drPattern)) add(cleanName(m[1].split(/\s+/)), true);
+  });
+  if (!found.size) {
+    const nameLine = /^[\p{Lu}][\p{L}'’\-]+(?:\s+[\p{Lu}][\p{L}'’\-]+){1,3}$/u;
+    lines.forEach((line) => { if (nameLine.test(line) && line.length <= 40) add(cleanName(line.split(' ')), false); });
+  }
+  return [...found.values()];
 }
 
 // ---------- Review ----------

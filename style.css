@@ -102,6 +102,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 .empty { color: var(--muted); text-align: center; padding: 32px 16px; }
 
 /* GP list in setup */
+.import-panel { background: var(--accent-soft); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; }
 .gp-edit { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .gp-edit input { flex: 1; }
 

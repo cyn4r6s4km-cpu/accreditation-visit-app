@@ -1,6 +1,6 @@
 // Offline support: serve the app from cache, refresh the cache in the background.
 // Bump CACHE whenever any file below changes so iPads pick up the new version.
-const CACHE = 'hrr-v8';
+const CACHE = 'hrr-v9';
 const FILES = [
   './',
   'index.html',
@@ -13,7 +13,9 @@ const FILES = [
   'icon-512.png',
   'vendor/jspdf.umd.min.js',
   'vendor/jspdf.plugin.autotable.min.js',
-  'vendor/jszip.min.js'
+  'vendor/jszip.min.js',
+  'vendor/pdf.min.js',
+  'vendor/pdf.worker.min.js'
 ];
 
 self.addEventListener('install', (event) => {
