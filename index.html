@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Health Records Review</title>
+<meta name="description" content="Health records review for RACGP Standards (5th edition) on-site accreditation assessments.">
+<meta name="theme-color" content="#1F3864">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Records Review">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a href="#/" class="brand" id="brand">Health Records Review</a>
+  <span class="save-status" id="saveStatus" aria-live="polite"></span>
+</header>
+<main id="app"></main>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="interview-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
