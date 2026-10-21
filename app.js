@@ -160,8 +160,15 @@ function newRecord() {
   return { cells, comment: '' };
 }
 
-function newGp(name) {
-  return { id: uid(), name: name || '', records: Array.from({ length: RECORDS_PER_GP }, newRecord), findings: '' };
+const GP_TYPE = { vr: 'VR GP', reg: 'Registrar' };
+
+function newGp(name, type) {
+  return { id: uid(), name: name || '', type: type || 'vr', records: Array.from({ length: RECORDS_PER_GP }, newRecord), findings: '' };
+}
+
+// GPs saved before types existed count as VR GPs.
+function gpType(gp) {
+  return gp.type === 'reg' ? 'reg' : 'vr';
 }
 
 function newVisit() {
@@ -189,6 +196,10 @@ function touch(visit) {
 
 function gpName(gp, i) {
   return (gp.name || '').trim() ? doctorName(gp.name) : 'GP ' + (i + 1);
+}
+
+function gpLabel(gp, i) {
+  return `${gpName(gp, i)} (${GP_TYPE[gpType(gp)]})`;
 }
 
 function namedGps(visit) {
@@ -376,7 +387,7 @@ function renderSetup(visit) {
       <div id="gpImport"></div>
       <div id="gpList"></div>
       <button id="addGp">+ Add GP</button>
-      <p class="note" id="doctorCount">${visit.doctorCount ? `The imported list had ${visit.doctorCount} doctors.` : ''}</p>
+      <p class="note" id="doctorCount">${visit.doctorCount ? `The imported list had ${visit.doctorCount} GPs (VR GPs and registrars).` : ''}</p>
     </div>
     <div class="actions">
       <button class="primary" id="start">Start reviewing records</button>
@@ -398,10 +409,16 @@ function renderSetup(visit) {
     list.innerHTML = visit.gps.map((g, i) => `
       <div class="gp-edit">
         <input type="text" data-gp="${i}" value="${esc(g.name)}" placeholder="GP ${i + 1} name, e.g. Dr Jane Smith" autocomplete="off">
+        <select data-gp-type="${i}" aria-label="GP ${i + 1} type">
+          ${Object.keys(GP_TYPE).map((t) => `<option value="${t}" ${gpType(g) === t ? 'selected' : ''}>${GP_TYPE[t]}</option>`).join('')}
+        </select>
         <button class="danger" data-remove="${i}" aria-label="Remove GP ${i + 1}">Remove</button>
       </div>`).join('');
     list.querySelectorAll('[data-gp]').forEach((input) => {
       input.addEventListener('input', () => { visit.gps[+input.dataset.gp].name = input.value; touch(visit); });
+    });
+    list.querySelectorAll('[data-gp-type]').forEach((sel) => {
+      sel.addEventListener('change', () => { visit.gps[+sel.dataset.gpType].type = sel.value; touch(visit); });
     });
     list.querySelectorAll('[data-remove]').forEach((btn) => {
       btn.onclick = () => {
@@ -438,12 +455,13 @@ function renderSetup(visit) {
     const existing = new Set(visit.gps.map((g) => doctorName(g.name).toLowerCase()));
     const fresh = names.filter((n) => !existing.has(doctorName(n.name).toLowerCase()));
     const anyDr = names.some((n) => n.dr);
+    const ROLE_TAG = { vr: 'VR GP', reg: 'Registrar', other: 'Not a GP' };
     importBox.innerHTML = `
       <div class="import-panel">
         <p style="margin-top:0"><strong>Found ${names.length} name${names.length === 1 ? '' : 's'} in ${esc(file.name)}.</strong>
-          ${anyDr ? 'Tick the GPs whose records you will review.' : 'No “Dr” was found, so nothing is ticked — tick the names that are GPs whose records you will review.'}
+          ${anyDr ? 'VR GPs and registrars are ticked; visiting specialists and other non-GPs are not. Untick anyone whose records you will not review.' : 'No “Dr” was found, so nothing is ticked — tick the names that are GPs whose records you will review.'}
           ${fresh.length < names.length ? ` ${names.length - fresh.length} already in the list ${names.length - fresh.length === 1 ? 'is' : 'are'} not shown.` : ''}</p>
-        ${fresh.map((n, i) => `<label class="check"><input type="checkbox" data-import="${i}" ${n.dr ? 'checked' : ''}> ${esc(doctorName(n.name))}</label>`).join('')}
+        ${fresh.map((n, i) => `<label class="check"><input type="checkbox" data-import="${i}" ${n.dr && n.role !== 'other' ? 'checked' : ''}> ${esc(doctorName(n.name))} <span class="chip ${n.role === 'other' ? '' : 'full'}">${ROLE_TAG[n.role]}</span></label>`).join('')}
         <div class="row">
           <button class="primary" id="importAdd">Add ticked GPs</button>
           <button id="importCancel">Cancel</button>
@@ -456,13 +474,14 @@ function renderSetup(visit) {
       // Fill any empty GP rows first, then add new ones.
       picked.forEach((n) => {
         const blank = visit.gps.find((g) => !g.name.trim());
-        if (blank) blank.name = doctorName(n.name);
-        else visit.gps.push(newGp(doctorName(n.name)));
+        const type = n.role === 'reg' ? 'reg' : 'vr';
+        if (blank) Object.assign(blank, { name: doctorName(n.name), type });
+        else visit.gps.push(newGp(doctorName(n.name), type));
       });
       // Remember the practice's doctor count for the second short interview.
       if (anyDr) {
-        visit.doctorCount = names.filter((n) => n.dr).length;
-        document.getElementById('doctorCount').textContent = `The imported list had ${visit.doctorCount} doctors.`;
+        visit.doctorCount = names.filter((n) => n.dr && n.role !== 'other').length;
+        document.getElementById('doctorCount').textContent = `The imported list had ${visit.doctorCount} GPs (VR GPs and registrars).`;
       }
       touch(visit);
       importBox.innerHTML = '';
@@ -501,7 +520,7 @@ function loadScript(src) {
 }
 
 // Qualifications, roles and days that often follow a doctor's name in staff lists.
-const NOT_NAME = /^(MBBS|BMBS|MBChB|MB|BS|BCh|BAO|MD|PhD|MPH|BSc|BMed\w*|FRACGP|FACRRM|FARGP|FRANZCOG|DRANZCOG\w*|DCH|MRCGP|GAICD|Dip\w*|Grad\w*|Adv\w*|GP|VMO|Registrar|Principal|Partner|Director|Owner|Locum|Female|Male|Mon\w*|Tue\w*|Wed\w*|Thu\w*|Fri\w*|Sat\w*|Sun\w*)$/i;
+const NOT_NAME = /^(MBBS|BMBS|MBChB|MB|BS|BCh|BAO|MD|PhD|MPH|BSc|BMed\w*|FRACGP|FACRRM|FARGP|FRANZCOG|DRANZCOG\w*|DCH|MRCGP|GAICD|Dip\w*|Grad\w*|Adv\w*|GP|VMO|Registrar|Principal|Partner|Director|Owner|Locum|Visiting|Clinical|Senior|Associate|Consultant|Female|Male|Mon\w*|Tue\w*|Wed\w*|Thu\w*|Fri\w*|Sat\w*|Sun\w*)$/i;
 
 function cleanName(words) {
   const kept = [];
@@ -513,7 +532,15 @@ function cleanName(words) {
   return kept.join(' ').replace(/[,.;:]+$/, '');
 }
 
-// Returns [{ name, dr }]: names after "Dr", or if there are none, lines that look like names.
+// What a staff-list line says about the doctor on it: GP registrar, non-GP (visiting
+// specialist or allied health), otherwise a VR GP.
+function roleFromLine(line) {
+  if (/\b(registrar|AGPT|RVTS|GPT\s?\d|in training)\b/i.test(line)) return 'reg';
+  if (/\b(specialist|psychiatrist|psychologist|paediatrician|pediatrician|physician|surgeon|dermatologist|obstetrician|gynaecologist|cardiologist|endocrinologist|geriatrician|anaesthetist|radiologist|dentist|optometrist|audiologist|physiotherapist|podiatrist|dietitian)\b/i.test(line)) return 'other';
+  return 'vr';
+}
+
+// Returns [{ name, dr, role }]: names after "Dr", or if there are none, lines that look like names.
 async function namesFromPdf(file) {
   if (!window.pdfjsLib) await loadScript('vendor/pdf.min.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
@@ -530,23 +557,32 @@ async function namesFromPdf(file) {
       rows.get(y).push(it);
     });
     [...rows.entries()].sort((a, b) => b[0] - a[0]).forEach(([, items]) => {
-      lines.push(items.sort((a, b) => a.transform[4] - b.transform[4]).map((it) => it.str).join(' ').replace(/\s+/g, ' ').trim());
+      // A wide gap between items is a table column break: mark it with | so a name
+      // never runs into the next cell (e.g. "Dr Priya Patel | Visiting Paediatrician").
+      items.sort((a, b) => a.transform[4] - b.transform[4]);
+      const line = items.map((it, k) => {
+        if (!k) return it.str;
+        const prev = items[k - 1];
+        const gap = it.transform[4] - (prev.transform[4] + prev.width);
+        return (gap > Math.max(prev.height || 0, 6) ? ' | ' : ' ') + it.str;
+      }).join('');
+      lines.push(line.replace(/\s+/g, ' ').trim());
     });
   }
 
   const found = new Map();
-  const add = (name, dr) => {
+  const add = (name, dr, role) => {
     const key = name.toLowerCase();
-    if (name.split(' ').length >= 2 && !found.has(key)) found.set(key, { name, dr });
+    if (name.split(' ').length >= 2 && !found.has(key)) found.set(key, { name, dr, role });
   };
   const WORD = "[\\p{Lu}][\\p{L}'’\\-]*\\.?";
   const drPattern = new RegExp(`\\b(?:Dr|DR|Doctor)\\.?\\s+(${WORD}(?:\\s+${WORD}){1,4})`, 'gu');
   lines.forEach((line) => {
-    for (const m of line.matchAll(drPattern)) add(cleanName(m[1].split(/\s+/)), true);
+    for (const m of line.matchAll(drPattern)) add(cleanName(m[1].split(/\s+/)), true, roleFromLine(line));
   });
   if (!found.size) {
     const nameLine = /^[\p{Lu}][\p{L}'’\-]+(?:\s+[\p{Lu}][\p{L}'’\-]+){1,3}$/u;
-    lines.forEach((line) => { if (nameLine.test(line) && line.length <= 40) add(cleanName(line.split(' ')), false); });
+    lines.forEach((line) => { if (nameLine.test(line) && line.length <= 40) add(cleanName(line.split(' ')), false, 'vr'); });
   }
   return [...found.values()];
 }
@@ -596,7 +632,7 @@ function renderReview(visit, gpId) {
     <nav class="tabs" id="tabs">
       ${gps.map((g, i) => {
         const p = progress([g]);
-        return `<a class="btn tab ${g === gp ? 'active' : ''}" href="#/visit/${visit.id}/${g.id}">${esc(gpName(g, visit.gps.indexOf(g)))} <span class="count">${p.done}/${p.total}</span></a>`;
+        return `<a class="btn tab ${g === gp ? 'active' : ''}" href="#/visit/${visit.id}/${g.id}">${esc(gpName(g, visit.gps.indexOf(g)))} <span class="gp-type">${GP_TYPE[gpType(g)]}</span> <span class="count">${p.done}/${p.total}</span></a>`;
       }).join('')}
     </nav>
     <div class="grid-wrap">
@@ -615,7 +651,7 @@ function renderReview(visit, gpId) {
         <tfoot><tr><th>Present</th>${COLUMNS.map((c) => `<td data-tally="${c.key}"></td>`).join('')}</tr></tfoot>
       </table>
     </div>
-    <h2>Findings summary — ${esc(gpName(gp, visit.gps.indexOf(gp)))}</h2>
+    <h2>Findings summary — ${esc(gpLabel(gp, visit.gps.indexOf(gp)))}</h2>
     <div class="summary-tallies" id="chips"></div>
     <textarea id="findings" placeholder="Plain-English summary of what you found in this GP's records. ${IDENTIFIER_HINT}.">${esc(gp.findings)}</textarea>
     <p class="note">Ticks, crosses, comments and summaries save automatically on this iPad.</p>
@@ -1358,13 +1394,13 @@ function buildPdf(visit, gps) {
     startY: y,
     margin: { left: M, right: M, bottom: 16 },
     head: [['GP', ...COLUMNS.map((c) => c.label.replace('/', '/\n')), 'Overall']],
-    body: gps.map((g) => [gpName(g, visit.gps.indexOf(g)), ...COLUMNS.map((c) => fmt(tally(g.records, c.key))), pct(g.records)]),
+    body: gps.map((g) => [gpLabel(g, visit.gps.indexOf(g)), ...COLUMNS.map((c) => fmt(tally(g.records, c.key))), pct(g.records)]),
     foot: [['All GPs', ...COLUMNS.map((c) => fmt(tally(all, c.key))), pct(all)]],
     theme: 'grid',
     styles: { fontSize: 9, halign: 'center', valign: 'middle', cellPadding: 1.8, lineColor: [200, 205, 215], lineWidth: 0.2 },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold' },
     footStyles: { fillColor: [230, 236, 246], textColor: 0, fontStyle: 'bold' },
-    columnStyles: equalColumns(contentW, 42, 16, { halign: 'left' })
+    columnStyles: equalColumns(contentW, 50, 16, { halign: 'left' })
   });
   y = doc.lastAutoTable.finalY + 4;
   doc.setFontSize(8.5);
@@ -1374,7 +1410,7 @@ function buildPdf(visit, gps) {
 
   // One section per GP
   gps.forEach((gp) => {
-    const name = gpName(gp, visit.gps.indexOf(gp));
+    const name = gpLabel(gp, visit.gps.indexOf(gp));
     const findings = gp.findings.trim();
     const comments = gp.records.map((r, i) => ({ n: i + 1, text: r.comment.trim() })).filter((c) => c.text);
     // Keep each GP's heading, table, comments and summary on one page where possible.
