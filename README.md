@@ -1,4 +1,4 @@
-# Accreditation visit app
+# Accreditation Visit
 
 An offline iPad web app for on-site accreditation visits against the RACGP Standards for general practices (5th edition):
 

@@ -1,7 +1,7 @@
 {
-  "name": "Health Records Review",
-  "short_name": "Records Review",
-  "description": "Health records review for RACGP Standards (5th edition) on-site accreditation assessments.",
+  "name": "Accreditation Visit",
+  "short_name": "Accreditation Visit",
+  "description": "Health records review, equipment check, GP interview and exit interview for RACGP Standards (5th edition) on-site accreditation visits.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

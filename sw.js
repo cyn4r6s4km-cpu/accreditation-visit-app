@@ -1,6 +1,6 @@
 // Offline support: serve the app from cache, refresh the cache in the background.
 // Bump CACHE whenever any file below changes so iPads pick up the new version.
-const CACHE = 'hrr-v11';
+const CACHE = 'hrr-v12';
 const FILES = [
   './',
   'index.html',
