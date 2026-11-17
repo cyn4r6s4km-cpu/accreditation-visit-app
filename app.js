@@ -36,7 +36,6 @@ const EQUIPMENT = [
       'Equipment for maintaining an airway in adults and children',
       'Hand sanitiser',
       'Intravenous access',
-      'In-date medicines for medical emergencies',
       'Practice stationery (including prescription pads and letterhead)',
       'Ophthalmoscope',
       'Sharps container',
@@ -47,6 +46,32 @@ const EQUIPMENT = [
       'Thermometer',
       'Tongue depressors',
       'Torch'
+    ]
+  },
+  {
+    key: 'bagdrugs',
+    title: "Doctor's bag — emergency drugs",
+    reminder: 'Tick each drug that is in the bag and in date. Suggested list based on Australian Prescriber’s doctor’s bag recommendations and the PBS Prescriber’s Bag; mark N/A for anything the practice does not carry. S8s must be stored and recorded according to legal requirements.',
+    items: [
+      'Adrenaline (epinephrine) 1 mg/mL injection — anaphylaxis',
+      'Aspirin 300 mg tablets — chest pain',
+      'Glyceryl trinitrate spray or tablets — angina',
+      'Salbutamol inhaler with spacer — asthma',
+      'Hydrocortisone or dexamethasone injection — asthma, anaphylaxis, croup',
+      'Benzylpenicillin injection — suspected meningococcal disease',
+      'Ceftriaxone injection — severe infection',
+      'Glucagon injection — hypoglycaemia',
+      'Glucose gel or 50% glucose injection — hypoglycaemia',
+      'Midazolam or diazepam — seizures',
+      'Naloxone injection — opioid overdose',
+      'Opioid analgesic injection, e.g. morphine (S8) — severe pain',
+      'Antiemetic injection, e.g. metoclopramide or prochlorperazine',
+      'Promethazine injection — allergy, sedation',
+      'Furosemide injection — acute pulmonary oedema',
+      'Atropine injection — bradycardia',
+      'Antipsychotic injection, e.g. haloperidol or droperidol — acute agitation',
+      'Lidocaine (lignocaine) 1% injection — local anaesthetic',
+      'Water for injection and sodium chloride 0.9%'
     ]
   },
   {
